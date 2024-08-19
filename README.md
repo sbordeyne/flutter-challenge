@@ -31,6 +31,7 @@ a successful GET /1 response looks like:
     "body": null,
     "file": null,
     "metadata": null,
+    "priority": 1,
     "created_at": "2024-08-19T16:59:15.594295",
     "updated_at": "2024-08-19T16:59:15.594295",
     "completed_at": null // or datetime
@@ -54,3 +55,20 @@ The API supports the following features:
 - GET, POST, PATCH, DELETE verbs
 - If-None-Match / ETag headers on requests/responses
 - CORS
+- List filters in query params on GET requests
+- Batch creation of TODOs
+- Raw SQL queries from the API
+
+### Available filters
+
+- is_completed: true/false => whether a todo is done
+- title_contains: string => checks the title
+- body_contains: string => checks the body
+- has_file: true/false => whether a file is attached
+- created_before/created_after: datetime => created before / after a certain date
+- updated_before/updated_after: datetime => updated before / after a certain date
+- completed_before/completed_after: datetime => completed before / after a certain date
+- priority: int => priority equals
+- priority_gt / gte / lt / lte: priority greater than, greater than or equals and so on
+
+All filters are are ANDed together.
