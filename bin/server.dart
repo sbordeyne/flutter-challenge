@@ -45,7 +45,7 @@ Middleware etagHeader() => (innerHandler) {
           }
         }
         final response = await innerHandler(request);
-        cache[request.url.path] = response;
+        cache[request.url.toString()] = response;
         return response;
       };
     };
@@ -55,12 +55,15 @@ final _router = Router()
   ..get('/', _getAllTodos)
   ..get('/<id>', _getTodoById)
   ..post('/', _createTodo)
+  ..post('/batch', _createMultipleTodos)
+  ..post('/query', _executeQuery)
   ..patch('/<id>', _updateTodo)
   ..delete('/', _deleteAllTodos)
   ..delete('/<id>', _deleteTodoById);
 
 Map<String, dynamic> serializeTodo(Row row) {
   final todo = Map<String, dynamic>.from(row);
+
   todo['metadata'] = jsonDecode(todo['metadata']);
   return todo;
 }
@@ -70,9 +73,72 @@ String computeEtag(String body) {
 }
 
 Future<Response> _getAllTodos(Request req) async {
+  late final ResultSet rows;
   final db = sqlite3.open(dbName);
-  final rows = db.select('SELECT * FROM todos;');
+  final queryParams = req.url.queryParameters;
+  if (queryParams.isEmpty) {
+    rows = db.select('SELECT * FROM todos;');
+  } else {
+    // has query params, filter with them
+    // query params available: is_completed: bool, title_contains: string, body_contains: string,
+    // has_file: bool, created_before: datetime, created_after: datetime,
+    // updated_before: datetime, updated_after: datetime, completed_before: datetime, completed_after: datetime
+    final List<String> where = [];
+    if (queryParams.containsKey('is_completed')) {
+      where.add(
+          'completed_at IS ${queryParams['is_completed'] == 'true' ? 'NOT ' : ''}NULL');
+    }
+    if (queryParams.containsKey('title_contains')) {
+      where.add('title LIKE "%${queryParams['title_contains']}%"');
+    }
+    if (queryParams.containsKey('body_contains')) {
+      where.add('body LIKE "%${queryParams['body_contains']}%"');
+    }
+    if (queryParams.containsKey('has_file')) {
+      where.add(
+          'file IS ${queryParams['has_file'] == 'true' ? 'NOT ' : ''}NULL');
+    }
+    if (queryParams.containsKey('created_before')) {
+      where.add('created_at < "${queryParams['created_before']}"');
+    }
+    if (queryParams.containsKey('created_after')) {
+      where.add('created_at > "${queryParams['created_after']}"');
+    }
+    if (queryParams.containsKey('updated_before')) {
+      where.add('updated_at < "${queryParams['updated_before']}"');
+    }
+    if (queryParams.containsKey('updated_after')) {
+      where.add('updated_at > "${queryParams['updated_after']}"');
+    }
+    if (queryParams.containsKey('completed_before')) {
+      where.add('completed_at < "${queryParams['completed_before']}"');
+    }
+    if (queryParams.containsKey('completed_after')) {
+      where.add('completed_at > "${queryParams['completed_after']}"');
+    }
+    if (queryParams.containsKey('priority')) {
+      where.add('priority = ${queryParams['priority']}');
+    }
+    if (queryParams.containsKey('priority_gt')) {
+      where.add('priority > ${queryParams['priority_gt']}');
+    }
+    if (queryParams.containsKey('priority_gte')) {
+      where.add('priority >= ${queryParams['priority_gte']}');
+    }
+    if (queryParams.containsKey('priority_lt')) {
+      where.add('priority < ${queryParams['priority_lt']}');
+    }
+    if (queryParams.containsKey('priority_lte')) {
+      where.add('priority <= ${queryParams['priority_lte']}');
+    }
+    final whereClause = where.join(' AND ');
+    print('SELECT * FROM todos WHERE $whereClause;');
+    rows = db.select('SELECT * FROM todos WHERE $whereClause;');
+  }
   db.dispose();
+  if (rows.isEmpty) {
+    return Response.ok('[]', headers: {'ETag': computeEtag('[]')});
+  }
   final body = jsonEncode(rows.map((r) => serializeTodo(r)).toList());
   return Response.ok(body, headers: {'ETag': computeEtag(body)});
 }
@@ -94,8 +160,8 @@ Future<Response> _createTodo(Request req) async {
   final now = DateTime.now().toIso8601String();
   final data = jsonDecode(body) as Map<String, dynamic>;
   db.execute('''
-    INSERT INTO todos (title, body, file, metadata, created_at, updated_at, completed_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?);
+    INSERT INTO todos (title, body, file, metadata, created_at, updated_at, completed_at, priority)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?);
   ''', [
     data['title'],
     data['body'],
@@ -104,11 +170,47 @@ Future<Response> _createTodo(Request req) async {
     now,
     now,
     (data['completed'] ?? false) ? now : null,
+    data['priority'] ?? 3,
   ]);
   final id = db.lastInsertRowId;
   final rows = db.select('SELECT * FROM todos WHERE id = ?;', [id]);
   db.dispose();
   final responseBody = jsonEncode(serializeTodo(rows.first));
+  return Response.ok(responseBody,
+      headers: {'ETag': computeEtag(responseBody)});
+}
+
+Future<Response> _createMultipleTodos(Request req) async {
+  final db = sqlite3.open(dbName);
+  final body = await req.readAsString();
+  final now = DateTime.now().toIso8601String();
+  final data = jsonDecode(body) as List<dynamic>;
+  final values = data.map((d) {
+    return [
+      d['title'],
+      d['body'],
+      d['file'],
+      jsonEncode(d['metadata']),
+      now,
+      now,
+      (d['completed'] ?? false) ? now : null,
+      d['priority'] ?? 3,
+    ];
+  }).toList();
+  final placeholders =
+      List.filled(values.length, '(?, ?, ?, ?, ?, ?, ?, ?)').join(',');
+  final flatValues = values.expand((v) => v).toList();
+  final fromId = db.lastInsertRowId;
+  db.execute('''
+    INSERT INTO todos (title, body, file, metadata, created_at, updated_at, completed_at, priority)
+    VALUES $placeholders;
+  ''', flatValues);
+  final toId = db.lastInsertRowId;
+  final ids =
+      List.generate(toId - fromId + 1, (i) => (i + 1).toString()).join(',');
+  final rows = db.select('SELECT * FROM todos WHERE id IN ($ids);');
+  db.dispose();
+  final responseBody = jsonEncode(rows.map((r) => serializeTodo(r)).toList());
   return Response.ok(responseBody,
       headers: {'ETag': computeEtag(responseBody)});
 }
@@ -128,7 +230,7 @@ Future<Response> _updateTodo(Request req, String id) async {
 
   db.execute('''
     UPDATE todos
-    SET title = ?, body = ?, file = ?, completed_at = ?, metadata = ?, updated_at = ?
+    SET title = ?, body = ?, file = ?, completed_at = ?, metadata = ?, updated_at = ?, priority = ?
     WHERE id = ?;
   ''', [
     data['title'] ?? rows.first['title'],
@@ -139,6 +241,7 @@ Future<Response> _updateTodo(Request req, String id) async {
         ? jsonEncode(data['metadata'])
         : rows.first['metadata'],
     now,
+    data['priority'] ?? rows.first['priority'],
     id,
   ]);
   rows = db.select('SELECT * FROM todos WHERE id = ?;', [id]);
@@ -168,12 +271,32 @@ Future<Response> _deleteTodoById(Request req, String id) async {
   return Response.ok(body, headers: {'ETag': computeEtag(body)});
 }
 
+Future<Response> _executeQuery(Request req) async {
+  final db = sqlite3.open(dbName);
+  final body = await req.readAsString();
+  final data = jsonDecode(body) as Map<String, dynamic>;
+  final rows = db.select(data['query'], data['values']);
+  db.dispose();
+  if (rows.isEmpty) {
+    return Response.ok('[]', headers: {'ETag': computeEtag('[]')});
+  }
+  final responseBody = jsonEncode(rows.map((r) => serializeTodo(r)).toList());
+  return Response.ok(
+    responseBody,
+    headers: {'ETag': computeEtag(responseBody)},
+  );
+}
+
 DynamicLibrary _openOnLinux() {
   return DynamicLibrary.open('/lib/x86_64-linux-gnu/libsqlite3.so.0');
 }
 
 void main(List<String> args) async {
-  open.overrideFor(OperatingSystem.linux, _openOnLinux);
+  final inContainer = Platform.environment.containsKey('IS_CONTAINER') &&
+      Platform.environment['IS_CONTAINER'] == 'true';
+  if (inContainer) {
+    open.overrideFor(OperatingSystem.linux, _openOnLinux);
+  }
   // Use any available host or container IP (usually `0.0.0.0`).
   final ip = InternetAddress.anyIPv4;
 
@@ -182,7 +305,7 @@ void main(List<String> args) async {
       .addMiddleware(logRequests())
       .addMiddleware(accessControlHeaders())
       .addMiddleware(contentTypeHeader())
-      .addMiddleware(etagHeader())
+      // .addMiddleware(etagHeader())
       .addHandler(_router.call);
 
   // For running in containers, we respect the PORT environment variable.
@@ -195,6 +318,7 @@ void main(List<String> args) async {
       body TEXT NULLABLE,
       file TEXT NULLABLE,
       metadata TEXT NULLABLE,
+      priority INTEGER DEFAULT 3,
       created_at DATETIME NOT NULL,
       updated_at DATETIME NOT NULL,
       completed_at DATETIME NULLABLE
@@ -205,6 +329,7 @@ void main(List<String> args) async {
     exit(0);
   });
   final server = await serve(handler, ip, port);
-  print('Server listening on port ${server.port}');
+  print(
+      'Server listening${inContainer ? ' (in container)' : ''} on port ${server.port}');
   db.dispose();
 }
