@@ -152,7 +152,7 @@ Those mockups are an inspiration for the design of the application. You are free
 
 ### List Page
 
-The list page displayss the list of tasks. The displayed tasks are ordered by creation date.
+The list page displays the list of tasks. The displayed tasks are ordered by creation date.
 
 ![List Page](./mockups/list.png)
 
