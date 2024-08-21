@@ -8,7 +8,7 @@ Develop a Flutter mobile application that manages a task list (a TODO list). The
 
 **1. Required Pages**:
 
-The application must have at least 4 pages (refer to the mockups):
+The application must have at least 4 pages (refer to the [mockups](#mockups) below):
 - List Page: Displays the list of tasks.
 - Creation Page: Form to create a new task.
 - Details Page: Displays the details of a specific task.
@@ -145,3 +145,37 @@ The API supports the following additional features:
 
 - If-None-Match / ETag headers on requests/responses
 - CORS
+
+## Mockups
+
+The mockups is a inspiration for the design of the application. You are free to make changes to the design as you see fit.
+
+### List Page
+
+The list page displayss the list of tasks. The displayed tasks are ordered by creation date.
+
+![List Page](./mockups/list.png)
+
+### Creation Page
+
+The creation page is a form to create a new task. The task has a title and note.
+
+![Creation Page](./mockups/create.png)
+
+### Detail Page
+
+The detail page displays the details of a specific task.
+
+![Detail Page](./mockups/detail.png)
+
+### Edit Dialog
+
+The edit dialog is a dialog to modify an existing task.
+
+![Edit Dialog](./mockups/edit.png)
+
+### Task options
+
+The task options dialog is a dialog to edit or to delete a task.
+
+![Task Options](./mockups/options.png)
