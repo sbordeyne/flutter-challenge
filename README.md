@@ -33,7 +33,10 @@ Implementing an architecture that follows CLEAN principles will be highly apprec
 
 ### Deliverable
 
-The project should execute in Android Studio.
+The project should be able to be executed with `flutter run` on an `Android Pixel 7 (API 34)` emulator.
+
+Provide the `dart-defines` in a json format if necessary. The project should run from the command `flutter run --debug --dart-define-from-file=defines.json`
+
 You must indicate the line where we will need to set the IP of the local API server (see "Running the API on your laptop/workstation" below).
 Please also send us back the API code if you modify it.
 
@@ -44,6 +47,17 @@ We will evaluate the code quality (soundness and readability) as well as the app
 ### Running the API on your laptop/workstation
 
 You will need to have `docker` and GNU `make` installed.
+The API is intendend to be very lightweight, sqlite is embedded in the docker container to keep things as simple as possible.
+
+The provided API is not for production use, but only for testing purposes.
+
+Due to the database being embedded in docker, there is no persistence of the database by default. 
+
+You can mount a volume to `/app/todos.db` if you need a way to keep the database persistent between restarts.
+
+The API doesn't serve static files. If you upload files, do so by encoding them as base64, the `file` field is defined as a `TEXT` in the sqlite3 schema.
+
+The API is kept very broad on purpose, you do not have to implement everything the API allows you to. The very basics for this assignment do not need advanced filters, file support, batch creation or task priority.
 
 Simply run `make run` to run the backend.
 The server will start listening on port `8080`.
@@ -59,6 +73,12 @@ The API code is located in [./bin/server.dart](./bin/server.dart).
 #### Task collection: `/` (GET, POST, DELETE)
 
 To create a new task, use `POST /` with a task object in the body (see "Task object" section below). Of course, you can omit the `id` field in the body, the `id` of the created task will be returned in the response.
+
+When creating / updating a task, the expected body is of the same format as the response, except for the following:
+- The `id` field should not be sent. If sent the API will ignore it
+- `created_at` is ignored, it is automatically set by the API
+- `updated_at` is ignored, it is automatically set by the API
+- The `completed_at` field is ignored, instead, to mark a task as completed, send the `completed` field with a boolean (`true` if the task is completed, `false` otherwise)
 
 To list all tasks, use `GET /`. It will return a list of tasks `[{"id": 1, ...}, ...]` as decribed below in "Task object".
 
@@ -99,13 +119,25 @@ Use `PATCH /<id>` to modify a task. You do not need to specify unmodified fields
 
 Use `DELETE /<id>` to delete a task.
 
-#### Batch requests: `/batch` (POST)
+#### Batch creation: `/batch` (POST)
 
-See \_createMultipleTodos in [./bin/server.dart](./bin/server.dart)
+You can create several tasks at once by instead sending a list of task objects in the body of the request (as JSON of course).
+
+The same caveats apply as for the individual task creation, i.e. `id`, `created_at`, `updated_at`, `completed_at` are ignored, and the `completed` field is used to mark a task as completed.
+
+Batch request is there as an option should you choose to use it.
 
 #### Raw queries: `/query` (POST)
 
-See \_executeQuery in [./bin/server.dart](./bin/server.dart)
+In case the API is not flexible enough for your use case, you can make SQL queries directly by using the `/query` endpoint. Keep in mind that it is there mostly for troubleshooting, or to implement more
+advanced filters / conditions. The expected body is as follows:
+
+```json
+{
+  "query": "SELECT * FROM todos WHERE id=?;",
+  "values": ["2"]
+}
+```
 
 #### Additional features:
 
