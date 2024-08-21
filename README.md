@@ -148,7 +148,7 @@ The API supports the following additional features:
 
 ## Mockups
 
-The mockups is a inspiration for the design of the application. You are free to make changes to the design as you see fit.
+Those mockups are an inspiration for the design of the application. You are free to make changes to the design as you see fit.
 
 ### List Page
 
