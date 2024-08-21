@@ -55,6 +55,10 @@ Due to the database being embedded in docker, there is no persistence of the dat
 
 You can mount a volume to `/app/todos.db` if you need a way to keep the database persistent between restarts.
 
+The API doesn't serve static files. If you upload files, do so by encoding them as base64, the `file` field is defined as a `TEXT` in the sqlite3 schema.
+
+The API is kept very broad on purpose, you do not have to implement everything the API allows you to. The very basics for this assignment do not need advanced filters, file support, batch creation or task priority.
+
 Simply run `make run` to run the backend.
 The server will start listening on port `8080`.
 
