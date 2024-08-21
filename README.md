@@ -2,7 +2,7 @@
 
 ## Objective
 
-Develop a Flutter mobile application that manages a task list (a TODO list). The application should allow to create, edit, delete, list, and view the tasks. It is essential that the application can operate in offline mode, enabling the user to manage tasks even when the device has no network connection. Data synchronization should occur automatically when the network becomes available again. You must use the API provided in this repository for storing tasks in a persistant way (see API section below).
+Develop a Flutter mobile application that manages a task list (a TODO list). The application should allow to create, edit, delete, list, and view the tasks. It is essential that the application can operate in offline mode, enabling the user to manage tasks even when the device has no network connection. Data synchronization should occur automatically when the network becomes available again. You must use the API provided in this repository for storing tasks in a persistant way (see [API section](#api) below).
 
 ### Technical Specifications
 
